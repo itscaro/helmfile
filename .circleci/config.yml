@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  win: circleci/windows@2.4.0
+
 jobs:
 
   build:
@@ -75,6 +78,42 @@ jobs:
       - run: make pristine
       - run: make test
 
+  test_windows:
+    executor:
+      name: win/default
+      shell: powershell.exe
+    working_directory: C:\workspace\helmfile
+    steps:
+      - checkout
+      - run: git config core.eol lf; git config core.autocrlf input
+      - restore_cache:
+          keys:
+          - windows-go-mod-cache-v1-{{ checksum "./go.sum" }}
+          - windows-go-mod-cache-v1-
+          - windows-go-installation-
+      - run: choco install make mingw
+      - run: choco upgrade golang
+      - save_cache:
+         key: windows-go-installation-202104
+         paths:
+         - C:\Users\circleci\go\pkg\mod
+         - /go/pkg/mod
+      - run: go env
+      - run: make build
+      - run: make build-test-tools
+      - save_cache:
+         key: windows-go-mod-cache-v1-{{ checksum "./go.sum" }}
+         paths:
+         - C:\Users\circleci\go\pkg\mod
+         - /go/pkg/mod
+      - persist_to_workspace:
+         root: ./
+         paths:
+           - .
+      - run: make check
+      #- run: make pristine
+      - run: make test
+
   # thanks to https://raw.githubusercontent.com/weaveworks/launcher/master/.circleci/config.yml
   integration_tests:
     machine:
@@ -98,7 +137,7 @@ jobs:
               make -C .circleci helm
             else
               make -C .circleci helm2
-            fi            
+            fi
             make -C .circleci vault
             make -C .circleci sops
             make -C .circleci kustomize
@@ -140,16 +179,17 @@ workflows:
   version: 2
   build_and_test:
     jobs:
-      - build
-      - image
-      - image_helm3
-      - test
-      - integration_tests:
-          requires:
-            - build
-          matrix:
-            parameters:
-              helm-version: ["v2.17.0", "v3.4.2"]
+      #- build
+      #- image
+      #- image_helm3
+      #- test
+      - test_windows
+      #- integration_tests:
+      #    requires:
+      #      - build
+      #    matrix:
+      #      parameters:
+      #        helm-version: ["v2.17.0", "v3.4.2", "v3.5.4"]
       - release:
           filters:
             branches:
